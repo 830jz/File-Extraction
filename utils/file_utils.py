@@ -52,15 +52,43 @@ def read_docx_file(file_path):
             if paragraph.text.strip():
                 content.append(paragraph.text)
         
-        # 添加表格内容
+        # 添加表格内容 - 转换为 Markdown 格式
         for table in doc.tables:
+            if not table.rows:
+                continue
+                
+            # 提取所有行的数据
+            rows_data = []
             for row in table.rows:
-                row_text = []
-                for cell in row.cells:
-                    if cell.text.strip():
-                        row_text.append(cell.text.strip())
-                if row_text:
-                    content.append(" | ".join(row_text))
+                row_text = [cell.text.strip().replace('\n', '<br>') for cell in row.cells]
+                rows_data.append(row_text)
+            
+            if not rows_data:
+                continue
+
+            # 确定列数（取最大列数）
+            max_cols = max(len(row) for row in rows_data)
+            
+            # 补齐每一行的列数
+            for i in range(len(rows_data)):
+                while len(rows_data[i]) < max_cols:
+                    rows_data[i].append("")
+            
+            content.append("\n") # 表格前空行
+            
+            # 生成 Markdown 表格
+            # 1. 表头
+            header = rows_data[0]
+            content.append("| " + " | ".join(header) + " |")
+            
+            # 2. 分隔线
+            content.append("| " + " | ".join(["---"] * max_cols) + " |")
+            
+            # 3. 数据行 (从第二行开始，如果有的话)
+            for row in rows_data[1:]:
+                content.append("| " + " | ".join(row) + " |")
+            
+            content.append("\n") # 表格后空行
         
         return "\n".join(content)
     except Exception as e:
@@ -81,13 +109,38 @@ def read_pdf_file(file_path):
                 try:
                     text = page.extract_text()
                     if text and text.strip():
-                        content.append(f"--- 第{page_num}页 ---")
+                        content.append(f"### 第{page_num}页")
                         content.append(text.strip())
+                    
+                    # 尝试提取表格
+                    tables = page.extract_tables()
+                    if tables:
+                        for table in tables:
+                            # 过滤空行
+                            cleaned_table = []
+                            for row in table:
+                                # 处理 None 值
+                                cleaned_row = [cell.replace('\n', '<br>') if cell else "" for cell in row]
+                                if any(cleaned_row): # 如果行不全为空
+                                    cleaned_table.append(cleaned_row)
+                            
+                            if not cleaned_table:
+                                continue
+                                
+                            # 转换为 Markdown 表格
+                            try:
+                                df_table = pd.DataFrame(cleaned_table[1:], columns=cleaned_table[0])
+                                content.append(df_table.to_markdown(index=False))
+                            except:
+                                # 如果 DataFrame 转换失败（例如列数不一致），简单拼接
+                                for row in cleaned_table:
+                                    content.append("| " + " | ".join(row) + " |")
+
                 except Exception as e:
                     content.append(f"无法提取第{page_num}页内容: {str(e)}")
             
             if content:  # 如果pdfplumber成功读取到内容
-                return "\n".join(content)
+                return "\n\n".join(content)
     except Exception as e:
         pdfplumber_error = e
         pass  # pdfplumber失败，继续尝试其他方法
@@ -99,13 +152,13 @@ def read_pdf_file(file_path):
             try:
                 text = page.extract_text()
                 if text and text.strip():
-                    content.append(f"--- 第{page_num}页 ---")
+                    content.append(f"### 第{page_num}页")
                     content.append(text.strip())
             except Exception as e:
                 content.append(f"无法提取第{page_num}页内容: {str(e)}")
         
         if content:
-            return "\n".join(content)
+            return "\n\n".join(content)
         else:
             return f"PDF文件 {file_path} 内容为空或无法提取文本"
     except Exception as pypdf2_error:
@@ -132,10 +185,17 @@ def read_xls_file(file_path):
             # 填充 NaN 为空字符串，避免输出 'NaN'
             sheet_data = sheet_data.fillna('')
             
-            content.append(f"\n=== 工作表: {sheet_name} ===")
-            # 使用 markdown 格式输出，tablefmt="grid" 可以更好地展示表格结构
+            content.append(f"\n### 工作表: {sheet_name}")
+            # 使用 markdown 格式输出
             try:
-                content.append(sheet_data.to_markdown(index=False, header=False, tablefmt="grid"))
+                # 尝试将第一行作为表头
+                if len(sheet_data) > 0:
+                    new_header = sheet_data.iloc[0]
+                    sheet_data = sheet_data[1:]
+                    sheet_data.columns = new_header
+                    content.append(sheet_data.to_markdown(index=False))
+                else:
+                    content.append(sheet_data.to_markdown(index=False))
             except ImportError:
                 # 如果没有安装 tabulate，回退到 to_string
                 content.append(sheet_data.to_string(index=False, header=False))
@@ -162,10 +222,22 @@ def read_excel_file(file_path):
             # 填充 NaN 为空字符串，避免输出 'NaN'
             sheet_data = sheet_data.fillna('')
             
-            content.append(f"\n=== 工作表: {sheet_name} ===")
-            # 使用 markdown 格式输出，tablefmt="grid" 可以更好地展示表格结构
+            content.append(f"\n### 工作表: {sheet_name}")
+            # 使用 markdown 格式输出
             try:
-                content.append(sheet_data.to_markdown(index=False, header=False, tablefmt="grid"))
+                # 尝试将第一行作为表头，这样表格更好看
+                if len(sheet_data) > 0:
+                    # 检查第一行是否适合做表头（非空）
+                    first_row = sheet_data.iloc[0].astype(str)
+                    if not first_row.str.contains('^$').all():
+                        new_header = first_row
+                        sheet_data_content = sheet_data[1:].copy()
+                        sheet_data_content.columns = new_header
+                        content.append(sheet_data_content.to_markdown(index=False))
+                    else:
+                         content.append(sheet_data.to_markdown(index=False, header=False))
+                else:
+                    content.append(sheet_data.to_markdown(index=False))
             except ImportError:
                 # 如果没有安装 tabulate，回退到 to_string
                 content.append(sheet_data.to_string(index=False, header=False))
@@ -184,13 +256,61 @@ def read_powerpoint_file(file_path):
         content = []
         
         for slide_num, slide in enumerate(prs.slides, 1):
-            content.append(f"\n--- 幻灯片 {slide_num} ---")
+            content.append(f"\n### 幻灯片 {slide_num}")
             
-            # 提取文本框内容
-            for shape in slide.shapes:
+            # 提取形状内容（按垂直位置排序，大致模拟阅读顺序）
+            shapes = sorted(slide.shapes, key=lambda x: (x.top if hasattr(x, 'top') else 0, x.left if hasattr(x, 'left') else 0))
+            
+            for shape in shapes:
+                # 1. 处理文本框
                 if hasattr(shape, "text") and shape.text.strip():
-                    content.append(shape.text)
-        
+                    text = shape.text.strip()
+                    content.append(text)
+                
+                # 2. 处理表格
+                if shape.has_table:
+                    table = shape.table
+                    rows_data = []
+                    
+                    # 提取所有行的数据
+                    for row in table.rows:
+                        row_text = []
+                        for cell in row.cells:
+                            if hasattr(cell, "text_frame") and cell.text_frame.text:
+                                row_text.append(cell.text_frame.text.strip().replace('\n', '<br>'))
+                            else:
+                                row_text.append("")
+                        rows_data.append(row_text)
+                    
+                    if not rows_data:
+                        continue
+                        
+                    # 确定列数
+                    max_cols = max(len(row) for row in rows_data)
+                    if max_cols == 0:
+                        continue
+                        
+                    # 补齐每一行的列数
+                    for i in range(len(rows_data)):
+                        while len(rows_data[i]) < max_cols:
+                            rows_data[i].append("")
+                    
+                    content.append("\n") # 表格前空行
+                    
+                    # 生成 Markdown 表格
+                    # 表头
+                    header = rows_data[0]
+                    content.append("| " + " | ".join(header) + " |")
+                    
+                    # 分隔线
+                    content.append("| " + " | ".join(["---"] * max_cols) + " |")
+                    
+                    # 数据行
+                    for row in rows_data[1:]:
+                        content.append("| " + " | ".join(row) + " |")
+                    
+                    content.append("\n") # 表格后空行
+
         return "\n".join(content)
     except Exception as e:
         return f"无法读取PowerPoint文件 {file_path}: {str(e)}"
@@ -202,7 +322,10 @@ def read_csv_file(file_path):
     """
     try:
         df = pd.read_csv(file_path)
-        return df.to_string(index=False)
+        try:
+            return df.to_markdown(index=False)
+        except ImportError:
+            return df.to_string(index=False)
     except Exception as e:
         return f"无法读取CSV文件 {file_path}: {str(e)}"
 

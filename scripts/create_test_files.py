@@ -162,6 +162,35 @@ def create_pptx():
         title2.text = "功能介绍"
         content2.text = "python-pptx库可以读取PowerPoint文档中的文本内容"
         
+        # 第三张幻灯片 - 表格
+        slide3 = prs.slides.add_slide(prs.slide_layouts[5]) # 空白布局或仅标题
+        title3 = slide3.shapes.title
+        title3.text = "表格测试"
+        
+        # 添加表格
+        rows, cols = 3, 3
+        left = top = width = height = 1000000 # 单位是 EMU
+        table = slide3.shapes.add_table(rows, cols, left, top, width, height).table
+        
+        # 设置列宽
+        table.columns[0].width = 2000000
+        table.columns[1].width = 2000000
+        table.columns[2].width = 2000000
+        
+        # 填充表头
+        table.cell(0, 0).text = "姓名"
+        table.cell(0, 1).text = "年龄"
+        table.cell(0, 2).text = "职业"
+        
+        # 填充数据
+        table.cell(1, 0).text = "张三"
+        table.cell(1, 1).text = "28"
+        table.cell(1, 2).text = "工程师"
+        
+        table.cell(2, 0).text = "李四"
+        table.cell(2, 1).text = "35"
+        table.cell(2, 2).text = "设计师"
+        
         prs.save('测试文档.pptx')
         print("✓ 创建测试PowerPoint文档: 测试文档.pptx")
         return True

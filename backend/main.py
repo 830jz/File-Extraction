@@ -1,8 +1,9 @@
 import sys
+import os
 from pathlib import Path
-
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 导入通用文件处理工具
-from file_utils import get_file_content, read_all_files
+from utils.file_utils import get_file_content, read_all_files
 
 def extract_content(path: str) -> str:
     """

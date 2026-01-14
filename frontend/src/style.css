@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #3b82f6;
+  --color-secondary: #64748b;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #06b6d4;
+  --color-light: #f8fafc;
+  --color-dark: #1e293b;
+  
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@utility content-auto {
+  content-visibility: auto;
+}
+
+@utility transition-all-300 {
+  transition: all 300ms ease-in-out;
+}
+
+@utility shadow-hover {
+  @apply transition-all duration-300;
+  &:hover {
+    @apply shadow-lg -translate-y-1;
+  }
+}
+
+@utility glass-effect {
+  @apply bg-white/20 backdrop-blur-lg;
+}
+
+@utility text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-info;
+}

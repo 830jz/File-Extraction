@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 
 # 导入通用文件处理工具
-from file_utils import get_file_content, read_all_files
+from utils.file_utils import get_file_content, read_all_files
 
 # ==========================================
 # 飞书工作流专用逻辑
